@@ -1,0 +1,6 @@
+node_modules
+dist
+.env
+npm-debug.log*
+supabase/seed.local.sql
+supabase/reset_from_mysql_dump.sql
