@@ -26,10 +26,13 @@ const DEFAULT_CORS_ORIGINS = [
 function getCorsOrigins() {
   const origins = process.env.CORS_ORIGINS || process.env.FRONTEND_ORIGINS;
   if (!origins) return DEFAULT_CORS_ORIGINS;
-  return origins
+  return Array.from(new Set([
+    ...DEFAULT_CORS_ORIGINS,
+    ...origins
     .split(',')
     .map((origin) => origin.trim())
-    .filter(Boolean);
+    .filter(Boolean),
+  ]));
 }
 
 async function bootstrap() {
