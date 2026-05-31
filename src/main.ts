@@ -10,6 +10,7 @@ dotenv.config();
 installPostgresCompat();
 
 const DEFAULT_CORS_ORIGINS = [
+  'https://balashte.netlify.app',
   'http://localhost:3000',
   'http://localhost:5173',
   'http://[::1]:3000',
