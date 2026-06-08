@@ -20,6 +20,7 @@ import { ReportesModule } from './modules/reportes/reportes.module';
 import { StripeModule } from './modules/stripe/stripe.module';
 import { FacturapiModule } from './modules/facturapi/facturapi.module';
 import { RespaldosModule } from './modules/respaldos/respaldos.module';
+import { ProduccionModule } from './modules/produccion/produccion.module';
 import { typeOrmConfig } from './database/typeorm.config';
 
 @Module({
@@ -42,6 +43,7 @@ import { typeOrmConfig } from './database/typeorm.config';
     StripeModule,
     FacturapiModule,
     RespaldosModule,
+    ProduccionModule,
   ],
   controllers: [HealthController],
   providers: [AuthGuard, RolesGuard],

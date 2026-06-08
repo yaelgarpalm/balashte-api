@@ -11,6 +11,7 @@
     "start:ipv6": "node dist/main.js",
     "build": "nest build",
     "db:check": "node scripts/check-postgres-connection.js",
+    "db:migrate": "node scripts/run-supabase-migrations.js",
     "supabase:migrate-product-images": "node scripts/migrate-local-product-images-to-supabase.js"
   },
   "dependencies": {
