@@ -103,6 +103,7 @@ create table public.productos (
   descripcion text,
   categoria_id integer not null references public.categorias(id),
   proveedor_id integer references public.proveedores(id),
+  tipo_producto varchar(20) not null default 'venta' check (tipo_producto in ('venta','insumo')),
   precio_compra numeric(10,2) not null default 0.00,
   precio_venta numeric(10,2) not null,
   stock integer not null default 0,
@@ -362,6 +363,7 @@ create table public.configuracion (
 
 create index if not exists idx_productos_categoria_id on public.productos(categoria_id);
 create index if not exists idx_productos_proveedor_id on public.productos(proveedor_id);
+create index if not exists idx_productos_tipo_producto on public.productos(tipo_producto);
 create index if not exists idx_produccion_formulas_producto_id on public.produccion_formulas(producto_id);
 create unique index if not exists uq_produccion_formula_activa_producto on public.produccion_formulas(producto_id) where activo = true;
 create index if not exists idx_produccion_formula_insumos_formula_id on public.produccion_formula_insumos(formula_id);

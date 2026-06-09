@@ -11,6 +11,9 @@ export class Producto {
   @Column()
   nombre: string;
 
+  @Column({ default: 'venta' })
+  tipo_producto: string;
+
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   precio_venta: number;
 

@@ -78,9 +78,9 @@ export class VentasService {
       for (const item of items) {
         const cantidad = Number(item.cantidad);
         if (!Number.isInteger(cantidad) || cantidad <= 0) throw new Error('La cantidad de cada producto debe ser un entero mayor a 0.');
-        const productos = await queryRunner.query('SELECT id, nombre, precio_venta, stock FROM productos WHERE id = ? AND activo = TRUE FOR UPDATE', [item.producto_id]);
+        const productos = await queryRunner.query("SELECT id, nombre, precio_venta, stock, tipo_producto FROM productos WHERE id = ? AND activo = TRUE AND tipo_producto = 'venta' FOR UPDATE", [item.producto_id]);
         const prod = productos[0];
-        if (!prod) throw new Error(`Producto ID ${item.producto_id} no encontrado o inactivo.`);
+        if (!prod) throw new Error(`Producto ID ${item.producto_id} no encontrado, inactivo o marcado como insumo.`);
         if (prod.stock < cantidad) throw new Error(`Stock insuficiente para "${prod.nombre}". Disponible: ${prod.stock}`);
         const precioFinal = item.precio_unitario || prod.precio_venta;
         const descItem = item.descuento || 0;

@@ -36,13 +36,13 @@ export class ProduccionService {
     const detalle = [];
     for (const item of normalized) {
       const rows = await runner.query(
-        `SELECT id, codigo, nombre, precio_compra, stock, unidad
+        `SELECT id, codigo, nombre, precio_compra, stock, unidad, tipo_producto
          FROM productos
-         WHERE id = ? AND activo = TRUE AND deleted_at IS NULL`,
+         WHERE id = ? AND activo = TRUE AND deleted_at IS NULL AND tipo_producto = 'insumo'`,
         [item.producto_id],
       );
       const producto = rows[0];
-      if (!producto) throw new Error(`Insumo ${item.producto_id} no encontrado.`);
+      if (!producto) throw new Error(`Insumo ${item.producto_id} no encontrado o no marcado como insumo.`);
       const costoUnitario = Number(producto.precio_compra || 0);
       const subtotal = item.cantidad * costoUnitario;
       detalle.push({
@@ -134,8 +134,8 @@ export class ProduccionService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
-      const producto = await queryRunner.query('SELECT id FROM productos WHERE id = ? AND deleted_at IS NULL', [productoId]);
-      if (!producto.length) throw new Error('Producto terminado no encontrado.');
+      const producto = await queryRunner.query("SELECT id FROM productos WHERE id = ? AND deleted_at IS NULL AND activo = TRUE AND tipo_producto = 'venta'", [productoId]);
+      if (!producto.length) throw new Error('Producto terminado no encontrado o no marcado como producto de venta.');
       const calculo = await this.calcularInsumos(normalized, queryRunner);
 
       await queryRunner.query('UPDATE produccion_formulas SET activo = FALSE WHERE producto_id = ? AND activo = TRUE', [productoId]);
@@ -267,9 +267,9 @@ export class ProduccionService {
       if (!insumos.length) throw new Error('El producto no tiene fórmula de producción registrada.');
       if (insumos.some((item) => item.producto_id === productoId)) throw new Error('El producto terminado no puede consumirse como insumo.');
 
-      const productoRows = await queryRunner.query('SELECT id, stock FROM productos WHERE id = ? AND activo = TRUE AND deleted_at IS NULL FOR UPDATE', [productoId]);
+      const productoRows = await queryRunner.query("SELECT id, stock FROM productos WHERE id = ? AND activo = TRUE AND deleted_at IS NULL AND tipo_producto = 'venta' FOR UPDATE", [productoId]);
       const productoFinal = productoRows[0];
-      if (!productoFinal) throw new Error('Producto terminado no encontrado.');
+      if (!productoFinal) throw new Error('Producto terminado no encontrado o no marcado como producto de venta.');
 
       const calculo = await this.calcularInsumos(insumos, queryRunner);
       for (const item of calculo.insumos) {

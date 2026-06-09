@@ -55,12 +55,13 @@ export class ProductosService {
   }
 
   async findAll(req: any, res: any) {
-    const { buscar, categoria_id, activo = 'true', page = 1, limit = 50 } = req.query;
+    const { buscar, categoria_id, tipo_producto, activo = 'true', page = 1, limit = 50 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
     const where = ['p.deleted_at IS NULL'];
     const params: any[] = [];
     if (activo !== 'todos') { where.push('p.activo = ?'); params.push(activo === 'true'); }
     if (categoria_id) { where.push('p.categoria_id = ?'); params.push(categoria_id); }
+    if (tipo_producto) { where.push('p.tipo_producto = ?'); params.push(tipo_producto); }
     if (buscar) { where.push('(p.nombre LIKE ? OR p.codigo LIKE ? OR p.descripcion LIKE ?)'); params.push(`%${buscar}%`, `%${buscar}%`, `%${buscar}%`); }
     try {
       const productos = await this.dataSource.query(
@@ -99,15 +100,18 @@ export class ProductosService {
 
   async create(req: any, res: any) {
     const { codigo, nombre, descripcion, categoria_id, proveedor_id, precio_compra, precio_venta, stock, stock_minimo, unidad, imagen_url, codigo_sat, unidad_sat } = req.body;
-    if (!codigo || !nombre || !categoria_id || !precio_venta) return res.status(400).json({ ok: false, mensaje: 'Código, nombre, categoría y precio de venta son obligatorios.' });
+    const tipoProducto = req.body.tipo_producto === 'insumo' ? 'insumo' : 'venta';
+    const precioVentaFinal = tipoProducto === 'insumo' ? Number(precio_venta || 0) : Number(precio_venta || 0);
+    if (!codigo || !nombre || !categoria_id) return res.status(400).json({ ok: false, mensaje: 'Código, nombre y categoría son obligatorios.' });
+    if (tipoProducto === 'venta' && precioVentaFinal <= 0) return res.status(400).json({ ok: false, mensaje: 'El precio de venta es obligatorio para productos de venta.' });
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
       const result = await queryRunner.query(
-        `INSERT INTO productos (codigo, nombre, descripcion, categoria_id, proveedor_id, precio_compra, precio_venta, stock, stock_minimo, unidad, imagen_url, codigo_sat, unidad_sat)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [codigo, nombre, descripcion || null, categoria_id, proveedor_id || null, precio_compra || 0, precio_venta, stock || 0, stock_minimo || 5, unidad || 'pieza', imagen_url || null, codigo_sat || '01010101', unidad_sat || 'H87'],
+        `INSERT INTO productos (codigo, nombre, descripcion, categoria_id, proveedor_id, tipo_producto, precio_compra, precio_venta, stock, stock_minimo, unidad, imagen_url, codigo_sat, unidad_sat)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [codigo, nombre, descripcion || null, categoria_id, proveedor_id || null, tipoProducto, precio_compra || 0, precioVentaFinal, stock || 0, stock_minimo || 5, unidad || 'pieza', imagen_url || null, codigo_sat || '01010101', unidad_sat || 'H87'],
       );
       if (Number(stock) > 0) {
         await queryRunner.query(
@@ -130,10 +134,13 @@ export class ProductosService {
 
   async update(req: any, res: any) {
     const { nombre, descripcion, categoria_id, proveedor_id, precio_compra, precio_venta, stock_minimo, unidad, imagen_url, activo, codigo_sat, unidad_sat } = req.body;
+    const tipoProducto = req.body.tipo_producto === 'insumo' ? 'insumo' : 'venta';
+    const precioVentaFinal = tipoProducto === 'insumo' ? Number(precio_venta || 0) : Number(precio_venta || 0);
+    if (tipoProducto === 'venta' && precioVentaFinal <= 0) return res.status(400).json({ ok: false, mensaje: 'El precio de venta es obligatorio para productos de venta.' });
     try {
       const result = await this.dataSource.query(
-        `UPDATE productos SET nombre=?, descripcion=?, categoria_id=?, proveedor_id=?, precio_compra=?, precio_venta=?, stock_minimo=?, unidad=?, imagen_url=?, activo=?, codigo_sat=?, unidad_sat=? WHERE id = ?`,
-        [nombre, descripcion || null, categoria_id, proveedor_id || null, precio_compra || 0, precio_venta, stock_minimo || 5, unidad || 'pieza', imagen_url || null, activo !== undefined ? activo : true, codigo_sat || '01010101', unidad_sat || 'H87', req.params.id],
+        `UPDATE productos SET nombre=?, descripcion=?, categoria_id=?, proveedor_id=?, tipo_producto=?, precio_compra=?, precio_venta=?, stock_minimo=?, unidad=?, imagen_url=?, activo=?, codigo_sat=?, unidad_sat=? WHERE id = ?`,
+        [nombre, descripcion || null, categoria_id, proveedor_id || null, tipoProducto, precio_compra || 0, precioVentaFinal, stock_minimo || 5, unidad || 'pieza', imagen_url || null, activo !== undefined ? activo : true, codigo_sat || '01010101', unidad_sat || 'H87', req.params.id],
       );
       if (!result.affectedRows) return res.status(404).json({ ok: false, mensaje: 'Producto no encontrado.' });
       return res.json({ ok: true, mensaje: 'Producto actualizado.' });
