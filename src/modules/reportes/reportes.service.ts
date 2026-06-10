@@ -16,13 +16,13 @@ export class ReportesService {
             FROM detalle_ventas dv
             JOIN productos p ON dv.producto_id = p.id
             JOIN ventas v2 ON dv.venta_id = v2.id
-            WHERE DATE(v2.created_at) = CURDATE() AND v2.estado = 'completada'
+            WHERE v2.created_at::date = CURRENT_DATE AND v2.estado = 'completada'
           ) AS costo
         FROM ventas
-        WHERE DATE(created_at) = CURDATE() AND estado = 'completada'
+        WHERE created_at::date = CURRENT_DATE AND estado = 'completada'
       `);
       const [{ gastos_hoy }] = await this.dataSource.query(
-        'SELECT COALESCE(SUM(monto), 0) AS gastos_hoy FROM gastos WHERE fecha = CURDATE()',
+        `SELECT COALESCE(SUM(monto), 0) AS gastos_hoy FROM gastos WHERE fecha = CURRENT_DATE`,
       );
       ventasHoy.gastos = gastos_hoy;
       ventasHoy.utilidad = ventasHoy.ingresos - ventasHoy.costo - gastos_hoy;
@@ -36,26 +36,27 @@ export class ReportesService {
             FROM detalle_ventas dv
             JOIN productos p ON dv.producto_id = p.id
             JOIN ventas v2 ON dv.venta_id = v2.id
-            WHERE MONTH(v2.created_at) = MONTH(CURDATE())
-              AND YEAR(v2.created_at) = YEAR(CURDATE())
+            WHERE EXTRACT(MONTH FROM v2.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+              AND EXTRACT(YEAR FROM v2.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
               AND v2.estado = 'completada'
           ) AS costo
         FROM ventas
-        WHERE MONTH(created_at) = MONTH(CURDATE())
-          AND YEAR(created_at) = YEAR(CURDATE())
+        WHERE EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+          AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
           AND estado = 'completada'
       `);
       const [{ gastos_mes }] = await this.dataSource.query(`
         SELECT COALESCE(SUM(monto), 0) AS gastos_mes
         FROM gastos
-        WHERE MONTH(fecha) = MONTH(CURDATE()) AND YEAR(fecha) = YEAR(CURDATE())
+        WHERE EXTRACT(MONTH FROM fecha) = EXTRACT(MONTH FROM CURRENT_DATE)
+          AND EXTRACT(YEAR FROM fecha) = EXTRACT(YEAR FROM CURRENT_DATE)
       `);
       ventasMes.gastos = gastos_mes;
       ventasMes.utilidad = ventasMes.ingresos - ventasMes.costo - gastos_mes;
 
       const [{ bajo_stock }] = await this.dataSource.query('SELECT COUNT(*) AS bajo_stock FROM vista_productos_bajo_stock');
       const [{ total_clientes }] = await this.dataSource.query(
-        'SELECT COUNT(*) AS total_clientes FROM clientes WHERE activo = TRUE AND id != 1',
+        `SELECT COUNT(*) AS total_clientes FROM clientes WHERE activo = true AND id != 1`,
       );
       const ultimas_ventas = await this.dataSource.query(`
         SELECT v.folio, v.total, v.metodo_pago, v.created_at, c.nombre AS cliente
@@ -93,7 +94,7 @@ export class ReportesService {
     try {
       const por_dia = await this.dataSource.query(
         `SELECT
-          DATE(v.created_at) AS fecha,
+          v.created_at::date AS fecha,
           COUNT(DISTINCT v.id) AS ventas,
           SUM(v.total) AS total,
           SUM(v.iva) AS iva,
@@ -111,7 +112,7 @@ export class ReportesService {
           GROUP BY dv.venta_id
         ) costos ON v.id = costos.venta_id
         WHERE ${where.join(' AND ')}
-        GROUP BY DATE(v.created_at)
+        GROUP BY v.created_at::date
         ORDER BY fecha`,
         params,
       );
@@ -124,6 +125,8 @@ export class ReportesService {
         params,
       );
 
+      // In PostgreSQL $n params can be reused — pass params once
+      const innerWhere = where.map((item) => item.replaceAll('v.', 'v2.')).join(' AND ');
       const [totales] = await this.dataSource.query(
         `SELECT
           COUNT(*) AS total_ventas,
@@ -136,11 +139,11 @@ export class ReportesService {
             FROM detalle_ventas dv
             JOIN productos p ON dv.producto_id = p.id
             JOIN ventas v2 ON dv.venta_id = v2.id
-            WHERE ${where.map((item) => item.replaceAll('v.', 'v2.')).join(' AND ')}
+            WHERE ${innerWhere}
           ) AS costo_total
         FROM ventas v
         WHERE ${where.join(' AND ')}`,
-        [...params, ...params],
+        params,
       );
 
       const top_productos = await this.dataSource.query(
@@ -156,7 +159,7 @@ export class ReportesService {
         JOIN productos p ON dv.producto_id = p.id
         LEFT JOIN categorias c ON p.categoria_id = c.id
         WHERE ${where.join(' AND ')}
-        GROUP BY p.id
+        GROUP BY p.id, p.nombre, c.nombre
         ORDER BY cantidad DESC
         LIMIT 25`,
         params,
@@ -229,7 +232,7 @@ export class ReportesService {
         JOIN roles r ON u.rol_id = r.id
         LEFT JOIN ventas v ON u.id = v.usuario_id AND ${where.join(' AND ')}
         WHERE u.deleted_at IS NULL
-        GROUP BY u.id
+        GROUP BY u.id, u.nombre, r.nombre
         ORDER BY ingresos_totales DESC`,
         params,
       );
@@ -258,7 +261,7 @@ export class ReportesService {
         FROM clientes c
         LEFT JOIN ventas v ON c.id = v.cliente_id AND ${where.join(' AND ')}
         WHERE c.deleted_at IS NULL AND c.id != 1
-        GROUP BY c.id
+        GROUP BY c.id, c.nombre, c.email, c.tipo
         ORDER BY total_gastado DESC`,
         params,
       );
@@ -273,13 +276,14 @@ export class ReportesService {
   private filtrosVentas(fechaInicio?: string, fechaFin?: string) {
     const where = ["v.estado = 'completada'"];
     const params: string[] = [];
+    let paramIdx = 1;
 
     if (fechaInicio) {
-      where.push('DATE(v.created_at) >= ?');
+      where.push(`v.created_at::date >= $${paramIdx++}`);
       params.push(fechaInicio);
     }
     if (fechaFin) {
-      where.push('DATE(v.created_at) <= ?');
+      where.push(`v.created_at::date <= $${paramIdx++}`);
       params.push(fechaFin);
     }
 
